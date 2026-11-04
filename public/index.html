@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Auto Snake 24/7 Live</title>
+    <title>Auto Snake 24/7 - Hard Mode</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body {
@@ -30,6 +30,7 @@
         .value { font-size: 22px; color: #4ade80; font-weight: 800; text-shadow: 0 0 10px rgba(74, 222, 128, 0.5); }
         .value.small { font-size: 14px; }
         .value.gift { color: #fbbf24; font-size: 11px; }
+        .value.hard { color: #ff2d3f; text-shadow: 0 0 10px rgba(255, 45, 63, 0.5); font-size: 16px;}
         .live-badge { display: flex; align-items: center; gap: 6px; color: #ff2d3f; font-weight: bold; font-size: 14px; letter-spacing: 2px; }
         .live-badge .dot { width: 8px; height: 8px; background: #ff2d3f; border-radius: 50%; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.8); } }
@@ -47,15 +48,15 @@
         .stat-box { display: flex; flex-direction: column; align-items: center; }
         .progress-text { display: flex; justify-content: space-between; font-size: 9px; color: #4a8a60; font-weight: bold; margin-bottom: 4px; }
         .progress-bar-bg { width: 100%; height: 6px; background: rgba(74, 222, 128, 0.2); border-radius: 3px; overflow: hidden; }
-        .progress-bar-fill { height: 100%; width: 0%; background: #4ade80; box-shadow: 0 0 10px #4ade80; transition: width 0.3s ease; }
+        .progress-bar-fill { height: 100%; width: 100%; background: #4ade80; box-shadow: 0 0 10px #4ade80; }
     </style>
 </head>
 <body>
     <div id="game-container">
         <div class="hud-top">
             <div class="hud-box">
-                <span class="label">LEVEL</span>
-                <span class="value" id="ui-level">1</span>
+                <span class="label">MODE</span>
+                <span class="value hard">HARD</span>
             </div>
             <div class="hud-box center">
                 <div class="live-badge"><span class="dot"></span> LIVE</div>
@@ -88,8 +89,8 @@
             </div>
             <div class="progress-container">
                 <div class="progress-text">
-                    <span id="ui-progress-text">0 / 7</span>
-                    <span>NEXT LEVEL</span>
+                    <span>ENDLESS SURVIVAL</span>
+                    <span>SUSPENSE ACTIVE</span>
                 </div>
                 <div class="progress-bar-bg">
                     <div class="progress-bar-fill" id="ui-progress-fill"></div>
@@ -109,17 +110,20 @@
 
         (function() {
             'use strict';
+            // Hard Mode: Increased base speed and minimum speed
             const COLS = 18, ROWS = 32, CELL = 40, W = COLS * CELL, H = ROWS * CELL;
-            const TICK_MAX = 140, TICK_MIN = 65;
+            const TICK_SPEED = 65; // Very fast, constant hard mode speed
             const canvas = document.getElementById('gameCanvas');
             const ctx = canvas.getContext('2d', { alpha: false });
             const ui = {
-                level: document.getElementById('ui-level'), score: document.getElementById('ui-score'),
-                apples: document.getElementById('ui-apples'), length: document.getElementById('ui-length'),
-                gift: document.getElementById('ui-gift'), progFill: document.getElementById('ui-progress-fill'),
-                progText: document.getElementById('ui-progress-text'), notif: document.getElementById('notification')
+                score: document.getElementById('ui-score'),
+                apples: document.getElementById('ui-apples'),
+                length: document.getElementById('ui-length'),
+                gift: document.getElementById('ui-gift'),
+                notif: document.getElementById('notification')
             };
 
+            // --- Audio Engine (Keyboard Click & Bomb Explosion) ---
             let audioCtx = null;
             const initAudio = () => {
                 if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} }
@@ -144,13 +148,24 @@
                         osc.frequency.setValueAtTime(900, now + 0.1);
                         gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
                         osc.start(now); osc.stop(now + 0.3);
+                    } else if (type === 'bomb') {
+                        // Low pitch explosion sound
+                        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, now);
+                        osc.frequency.exponentialRampToValueAtTime(20, now + 0.4);
+                        gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                        osc.start(now); osc.stop(now + 0.4);
                     }
                 } catch(e) {}
             };
 
-            let snake = [], dir = { x: 1, y: 0 }, food = { x: 0, y: 0 };
-            let level = 1, score = 0, totalApples = 0, applesInLevel = 0, applesNeeded = 7;
-            let tickMs = TICK_MAX, lastTick = 0, isGameOver = false;
+            // --- Game State ---
+            let snake = [], dir = { x: 1, y: 0 };
+            let apple = { x: 0, y: 0 };
+            let bomb = { x: -1, y: -1, active: false };
+            let score = 0, totalApples = 0;
+            let lastTick = 0, isGameOver = false;
+
+            // --- Buffers ---
             const occBuf = new Uint8Array(COLS * ROWS), visitedBuf = new Int32Array(COLS * ROWS);
             const queueBuf = new Int32Array(COLS * ROWS), parentBuf = new Int32Array(COLS * ROWS);
             const DIRS = [{x:1,y:0}, {x:-1,y:0}, {x:0,y:1}, {x:0,y:-1}];
@@ -158,66 +173,154 @@
             function resetRound() {
                 const cy = Math.floor(ROWS / 2); snake = [];
                 for (let i = 0; i < 5; i++) snake.push({ x: 4 - i, y: cy });
-                dir = { x: 1, y: 0 }; spawnFood(); isGameOver = false;
+                dir = { x: 1, y: 0 }; 
+                bomb.active = false;
+                spawnApple(); 
+                isGameOver = false;
             }
 
-            function spawnFood() {
-                occBuf.fill(0); snake.forEach(s => occBuf[s.y * COLS + s.x] = 1);
+            function spawnApple() {
+                occBuf.fill(0); 
+                snake.forEach(s => occBuf[s.y * COLS + s.x] = 1);
+                if(bomb.active) occBuf[bomb.y * COLS + bomb.x] = 1;
+                
                 let freeCells = [];
                 for (let i = 0; i < COLS * ROWS; i++) if (!occBuf[i]) freeCells.push(i);
                 if (freeCells.length === 0) return resetRound();
                 const idx = freeCells[Math.floor(Math.random() * freeCells.length)];
-                food = { x: idx % COLS, y: Math.floor(idx / COLS) };
+                apple = { x: idx % COLS, y: Math.floor(idx / COLS) };
+            }
+
+            function spawnBomb() {
+                if (bomb.active) return;
+                occBuf.fill(0); 
+                snake.forEach(s => occBuf[s.y * COLS + s.x] = 1);
+                occBuf[apple.y * COLS + apple.x] = 1;
+                
+                let freeCells = [];
+                for (let i = 0; i < COLS * ROWS; i++) if (!occBuf[i]) freeCells.push(i);
+                if (freeCells.length > 0) {
+                    const idx = freeCells[Math.floor(Math.random() * freeCells.length)];
+                    bomb = { x: idx % COLS, y: Math.floor(idx / COLS), active: true };
+                }
             }
 
             function getNextMove() {
-                const head = snake[0]; visitedBuf.fill(0);
-                let headIdx = head.y * COLS + head.x, foodIdx = food.y * COLS + food.x;
-                let qHead = 0, qTail = 0; queueBuf[qTail++] = headIdx;
-                visitedBuf[headIdx] = 1; parentBuf[headIdx] = -1; let found = false;
+                const head = snake[0]; 
+                visitedBuf.fill(0);
+                let headIdx = head.y * COLS + head.x, appleIdx = apple.y * COLS + apple.x;
+                let qHead = 0, qTail = 0; 
+                queueBuf[qTail++] = headIdx;
+                visitedBuf[headIdx] = 1; 
+                parentBuf[headIdx] = -1; 
+                let found = false;
+
                 while (qHead < qTail) {
                     let curr = queueBuf[qHead++];
-                    if (curr === foodIdx) { found = true; break; }
+                    if (curr === appleIdx) { found = true; break; }
                     let cx = curr % COLS, cy = Math.floor(curr / COLS);
                     for (let d of DIRS) {
                         let nx = cx + d.x, ny = cy + d.y;
                         if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
                         let nIdx = ny * COLS + nx;
-                        if (visitedBuf[nIdx] || occBuf[nIdx]) continue;
-                        visitedBuf[nIdx] = 1; parentBuf[nIdx] = curr; queueBuf[qTail++] = nIdx;
+                        // Treat snake body and active bomb as obstacles
+                        if (visitedBuf[nIdx] || occBuf[nIdx] || (bomb.active && nIdx === bomb.y * COLS + bomb.x)) continue;
+                        visitedBuf[nIdx] = 1; 
+                        parentBuf[nIdx] = curr; 
+                        queueBuf[qTail++] = nIdx;
                     }
                 }
+
                 if (found) {
-                    let curr = foodIdx;
+                    let curr = appleIdx;
                     while (parentBuf[curr] !== headIdx) { curr = parentBuf[curr]; if (curr === -1) return null; }
                     return { x: (curr % COLS) - head.x, y: Math.floor(curr / COLS) - head.y };
                 }
+
+                // Fallback: If no path to food, just find any safe move to survive as long as possible (Creates Suspense!)
                 let safeMoves = [];
                 for (let d of DIRS) {
                     let nx = head.x + d.x, ny = head.y + d.y;
-                    if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && !occBuf[ny * COLS + nx]) safeMoves.push(d);
+                    if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && !occBuf[ny * COLS + nx] && !(bomb.active && nx === bomb.x && ny === bomb.y)) {
+                        safeMoves.push(d);
+                    }
                 }
                 return safeMoves.length > 0 ? safeMoves[Math.floor(Math.random() * safeMoves.length)] : null;
             }
 
             function updateGame() {
                 if (isGameOver) return;
+                
+                // Randomly spawn bombs (approx every 4-5 seconds)
+                if (!bomb.active && Math.random() < 0.015) {
+                    spawnBomb();
+                }
+
                 const nextDir = getNextMove();
-                if (!nextDir) { showNotification("AUTO RECOVERY...", "#ff2d3f"); resetRound(); return; }
-                dir = nextDir; const head = snake[0];
+                if (!nextDir) { 
+                    showNotification("RECOVERING...", "#ff2d3f"); 
+                    resetRound(); return; 
+                }
+                
+                dir = nextDir; 
+                const head = snake[0];
                 const newHead = { x: head.x + dir.x, y: head.y + dir.y };
-                snake.unshift(newHead); playSound('move');
-                if (newHead.x === food.x && newHead.y === food.y) {
-                    playSound('eat'); score += 10 * level; totalApples++; applesInLevel++;
-                    if (applesInLevel >= applesNeeded) levelUp(); else spawnFood();
-                } else { snake.pop(); }
+                
+                snake.unshift(newHead); 
+                playSound('move');
+
+                // Check Bomb Collision
+                if (bomb.active && newHead.x === bomb.x && newHead.y === bomb.y) {
+                    playSound('bomb');
+                    bomb.active = false;
+                    if (snake.length > 3) snake.pop(); // Shrink length
+                    showNotification("BOOM! -1 LENGTH", "#ff2d3f");
+                }
+                // Check Apple Collision
+                else if (newHead.x === apple.x && newHead.y === apple.y) {
+                    playSound('eat'); 
+                    score += 10; 
+                    totalApples++;
+                    spawnApple();
+                } else { 
+                    snake.pop(); 
+                }
+                
                 updateHUD();
             }
 
-            function levelUp() {
-                level++; applesInLevel = 0; applesNeeded = 5 + (level * 2);
-                tickMs = Math.max(TICK_MIN, TICK_MAX - (level * 5));
-                showNotification(`LEVEL ${level}`, "#4ade80"); spawnFood();
+            // --- Rendering ---
+            function drawApple(cx, cy) {
+                const r = CELL * 0.35;
+                // Apple Body
+                ctx.fillStyle = '#ff2d3f';
+                ctx.shadowBlur = 15; ctx.shadowColor = '#ff2d3f';
+                ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+                // Apple Highlight
+                ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.beginPath(); ctx.arc(cx - r*0.3, cy - r*0.3, r*0.2, 0, Math.PI * 2); ctx.fill();
+                // Stem
+                ctx.strokeStyle = '#4a2c1a'; ctx.lineWidth = 3; ctx.beginPath(); 
+                ctx.moveTo(cx, cy - r); ctx.quadraticCurveTo(cx + 3, cy - r - 6, cx + 6, cy - r - 8); ctx.stroke();
+                // Leaf
+                ctx.fillStyle = '#22c55e'; ctx.beginPath();
+                ctx.ellipse(cx + 8, cy - r - 5, 6, 3, Math.PI / 4, 0, Math.PI * 2); ctx.fill();
+            }
+
+            function drawBomb(cx, cy) {
+                const r = CELL * 0.35;
+                // Bomb Body
+                ctx.fillStyle = '#1f2937'; ctx.shadowBlur = 10; ctx.shadowColor = '#000';
+                ctx.beginPath(); ctx.arc(cx, cy + 2, r, 0, Math.PI * 2); ctx.fill();
+                // Highlight
+                ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                ctx.beginPath(); ctx.arc(cx - r*0.3, cy - r*0.2, r*0.2, 0, Math.PI * 2); ctx.fill();
+                // Fuse
+                ctx.strokeStyle = '#b45309'; ctx.lineWidth = 3; ctx.beginPath();
+                ctx.moveTo(cx + 4, cy - r + 2); ctx.lineTo(cx + 8, cy - r - 8); ctx.stroke();
+                // Spark
+                ctx.fillStyle = '#fbbf24'; ctx.shadowBlur = 15; ctx.shadowColor = '#fbbf24';
+                ctx.beginPath(); ctx.arc(cx + 8, cy - r - 8, 4, 0, Math.PI * 2); ctx.fill();
             }
 
             function draw() {
@@ -225,11 +328,12 @@
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)'; ctx.lineWidth = 1;
                 for (let i = 0; i <= COLS; i++) { ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, H); ctx.stroke(); }
                 for (let i = 0; i <= ROWS; i++) { ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(W, i * CELL); ctx.stroke(); }
-                const fx = food.x * CELL + CELL / 2, fy = food.y * CELL + CELL / 2;
-                ctx.shadowBlur = 20; ctx.shadowColor = '#ff2d3f'; ctx.fillStyle = '#ff2d3f';
-                ctx.beginPath(); ctx.arc(fx, fy, CELL * 0.35, 0, Math.PI * 2); ctx.fill();
-                ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,0.4)';
-                ctx.beginPath(); ctx.arc(fx - 4, fy - 4, 3, 0, Math.PI * 2); ctx.fill();
+
+                // Draw Food & Bomb
+                drawApple(apple.x * CELL + CELL / 2, apple.y * CELL + CELL / 2);
+                if (bomb.active) drawBomb(bomb.x * CELL + CELL / 2, bomb.y * CELL + CELL / 2);
+
+                // Draw Snake (Unchanged Design)
                 for (let i = snake.length - 1; i >= 0; i--) {
                     const s = snake[i], sx = s.x * CELL + CELL / 2, sy = s.y * CELL + CELL / 2;
                     ctx.shadowBlur = i === 0 ? 15 : 5; ctx.shadowColor = '#22c55e';
@@ -258,18 +362,16 @@
             }
 
             function updateHUD() {
-                ui.level.textContent = level; ui.score.textContent = score.toLocaleString();
-                ui.apples.textContent = totalApples; ui.length.textContent = snake.length;
-                const progPercent = (applesInLevel / applesNeeded) * 100;
-                ui.progFill.style.width = `${progPercent}%`;
-                ui.progText.textContent = `${applesInLevel} / ${applesNeeded}`;
+                ui.score.textContent = score.toLocaleString();
+                ui.apples.textContent = totalApples; 
+                ui.length.textContent = snake.length;
                 if (totalApples > 0 && totalApples % 7 === 0) ui.gift.textContent = "BONUS +50";
             }
 
             function loop(time) {
                 requestAnimationFrame(loop);
                 if (!lastTick) lastTick = time;
-                if (time - lastTick >= tickMs) { updateGame(); lastTick = time; }
+                if (time - lastTick >= TICK_SPEED) { updateGame(); lastTick = time; }
                 draw();
             }
 
