@@ -1,1 +1,12 @@
-
+{
+  "name": "auto-snake-24-7",
+  "version": "1.0.0",
+  "description": "Fully autonomous 24/7 Snake game for YouTube Live Streaming",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
