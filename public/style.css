@@ -14,13 +14,15 @@ body {
     justify-content: center;
     align-items: center;
     height: 100vh;
+    height: 100dvh; /* Fixes mobile URL bar issue */
 }
 
 #game-container {
     position: relative;
     width: 100vw;
     height: 100vh;
-    max-width: calc(100vh * 9 / 16); /* Force 9:16 Aspect Ratio */
+    height: 100dvh; /* Fixes mobile URL bar issue */
+    max-width: calc(100vh * 9 / 16);
     max-height: calc(100vw * 16 / 9);
     background-color: #050505;
     display: flex;
@@ -33,14 +35,15 @@ body {
 .hud-top, .hud-bottom {
     background: rgba(10, 20, 15, 0.95);
     z-index: 10;
-    padding: 10px 15px;
+    padding: 8px 15px;
     border-bottom: 1px solid rgba(0, 255, 100, 0.2);
+    flex-shrink: 0;
 }
 
 .hud-bottom {
     border-bottom: none;
     border-top: 1px solid rgba(0, 255, 100, 0.2);
-    padding-bottom: 15px;
+    padding-bottom: 12px;
 }
 
 .hud-top {
@@ -65,14 +68,14 @@ body {
 }
 
 .value {
-    font-size: 24px;
+    font-size: 22px;
     color: #4ade80;
     font-weight: 800;
     text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
 }
 
-.value.small { font-size: 16px; }
-.value.gift { color: #fbbf24; font-size: 12px; }
+.value.small { font-size: 14px; }
+.value.gift { color: #fbbf24; font-size: 11px; }
 
 .live-badge {
     display: flex;
@@ -104,25 +107,27 @@ body {
     justify-content: center;
     align-items: center;
     background: #000;
+    overflow: hidden;
 }
 
 canvas {
-    width: 100%;
-    height: 100%;
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
 }
 
 /* Notifications */
 .notification {
     position: absolute;
-    top: 15%;
+    top: 10%;
     left: 50%;
     transform: translate(-50%, -20px);
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.9);
     border: 1px solid #4ade80;
     padding: 10px 20px;
     border-radius: 8px;
-    font-size: 20px;
+    font-size: 16px;
     font-weight: bold;
     color: #4ade80;
     text-shadow: 0 0 10px #4ade80;
@@ -131,6 +136,8 @@ canvas {
     pointer-events: none;
     text-align: center;
     box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+    z-index: 20;
+    width: 80%;
 }
 .notification.show {
     opacity: 1;
@@ -141,7 +148,7 @@ canvas {
 .stats-row {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 .stat-box {
     display: flex;
