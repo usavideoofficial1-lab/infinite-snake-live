@@ -1,1 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Auto Snake 24/7 Live</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Top HUD -->
+        <div class="hud-top">
+            <div class="hud-box">
+                <span class="label">LEVEL</span>
+                <span class="value" id="ui-level">1</span>
+            </div>
+            <div class="hud-box center">
+                <div class="live-badge"><span class="dot"></span> LIVE</div>
+            </div>
+            <div class="hud-box right">
+                <span class="label">SCORE</span>
+                <span class="value" id="ui-score">0</span>
+            </div>
+        </div>
 
+        <!-- Game Canvas -->
+        <div class="canvas-wrapper">
+            <canvas id="gameCanvas" width="720" height="1280"></canvas>
+            <div id="notification" class="notification"></div>
+        </div>
+
+        <!-- Bottom HUD -->
+        <div class="hud-bottom">
+            <div class="stats-row">
+                <div class="stat-box">
+                    <span class="label">TOTAL APPLES</span>
+                    <span class="value small" id="ui-apples">0</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">SNAKE LENGTH</span>
+                    <span class="value small" id="ui-length">5</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">LAST GIFT</span>
+                    <span class="value small gift" id="ui-gift">—</span>
+                </div>
+            </div>
+            <div class="progress-container">
+                <div class="progress-text">
+                    <span id="ui-progress-text">0 / 7</span>
+                    <span>NEXT LEVEL</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="ui-progress-fill"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
