@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Auto Snake 24/7 - Hard Mode</title>
+    <title>Auto Snake 24/7 - Endless Hard Mode</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body {
@@ -93,7 +93,7 @@
                     <span>SUSPENSE ACTIVE</span>
                 </div>
                 <div class="progress-bar-bg">
-                    <div class="progress-bar-fill" id="ui-progress-fill"></div>
+                    <div class="progress-bar-fill"></div>
                 </div>
             </div>
         </div>
@@ -110,9 +110,8 @@
 
         (function() {
             'use strict';
-            // Hard Mode: Increased base speed and minimum speed
             const COLS = 18, ROWS = 32, CELL = 40, W = COLS * CELL, H = ROWS * CELL;
-            const TICK_SPEED = 65; // Very fast, constant hard mode speed
+            const TICK_SPEED = 75; // Fast, hard mode constant speed
             const canvas = document.getElementById('gameCanvas');
             const ctx = canvas.getContext('2d', { alpha: false });
             const ui = {
@@ -123,7 +122,7 @@
                 notif: document.getElementById('notification')
             };
 
-            // --- Audio Engine (Keyboard Click & Bomb Explosion) ---
+            // --- Audio Engine ---
             let audioCtx = null;
             const initAudio = () => {
                 if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} }
@@ -149,7 +148,6 @@
                         gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
                         osc.start(now); osc.stop(now + 0.3);
                     } else if (type === 'bomb') {
-                        // Low pitch explosion sound
                         osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, now);
                         osc.frequency.exponentialRampToValueAtTime(20, now + 0.4);
                         gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
@@ -165,9 +163,10 @@
             let score = 0, totalApples = 0;
             let lastTick = 0, isGameOver = false;
 
-            // --- Buffers ---
+            // --- Optimization Buffers (Zero-GC for 24/7 stability) ---
             const occBuf = new Uint8Array(COLS * ROWS), visitedBuf = new Int32Array(COLS * ROWS);
             const queueBuf = new Int32Array(COLS * ROWS), parentBuf = new Int32Array(COLS * ROWS);
+            const ffVisited = new Uint8Array(COLS * ROWS), ffStack = new Int32Array(COLS * ROWS);
             const DIRS = [{x:1,y:0}, {x:-1,y:0}, {x:0,y:1}, {x:0,y:-1}];
 
             function resetRound() {
@@ -180,33 +179,76 @@
             }
 
             function spawnApple() {
-                occBuf.fill(0); 
-                snake.forEach(s => occBuf[s.y * COLS + s.x] = 1);
-                if(bomb.active) occBuf[bomb.y * COLS + bomb.x] = 1;
-                
                 let freeCells = [];
-                for (let i = 0; i < COLS * ROWS; i++) if (!occBuf[i]) freeCells.push(i);
-                if (freeCells.length === 0) return resetRound();
-                const idx = freeCells[Math.floor(Math.random() * freeCells.length)];
-                apple = { x: idx % COLS, y: Math.floor(idx / COLS) };
+                for (let i = 0; i < COLS * ROWS; i++) {
+                    let x = i % COLS, y = Math.floor(i / COLS);
+                    let isSnake = snake.some(s => s.x === x && s.y === y);
+                    let isBomb = bomb.active && (bomb.x === x && bomb.y === y);
+                    if (!isSnake && !isBomb) freeCells.push(i);
+                }
+                if (freeCells.length > 0) {
+                    const idx = freeCells[Math.floor(Math.random() * freeCells.length)];
+                    apple = { x: idx % COLS, y: Math.floor(idx / COLS) };
+                }
             }
 
             function spawnBomb() {
                 if (bomb.active) return;
-                occBuf.fill(0); 
-                snake.forEach(s => occBuf[s.y * COLS + s.x] = 1);
-                occBuf[apple.y * COLS + apple.x] = 1;
-                
                 let freeCells = [];
-                for (let i = 0; i < COLS * ROWS; i++) if (!occBuf[i]) freeCells.push(i);
+                for (let i = 0; i < COLS * ROWS; i++) {
+                    let x = i % COLS, y = Math.floor(i / COLS);
+                    let isSnake = snake.some(s => s.x === x && s.y === y);
+                    let isApple = (apple.x === x && apple.y === y);
+                    if (!isSnake && !isApple) freeCells.push(i);
+                }
                 if (freeCells.length > 0) {
                     const idx = freeCells[Math.floor(Math.random() * freeCells.length)];
                     bomb = { x: idx % COLS, y: Math.floor(idx / COLS), active: true };
                 }
             }
 
+            // --- Flood Fill for Survival Fallback ---
+            function getFreeSpaceCount(startX, startY) {
+                ffVisited.fill(0);
+                let stackPtr = 0, count = 0;
+                ffStack[stackPtr++] = startY * COLS + startX;
+                ffVisited[startY * COLS + startX] = 1;
+                
+                while (stackPtr > 0) {
+                    let curr = ffStack[--stackPtr];
+                    count++;
+                    let cx = curr % COLS, cy = Math.floor(curr / COLS);
+                    for (let d of DIRS) {
+                        let nx = cx + d.x, ny = cy + d.y;
+                        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+                        let nIdx = ny * COLS + nx;
+                        if (!ffVisited[nIdx] && !occBuf[nIdx]) {
+                            ffVisited[nIdx] = 1;
+                            ffStack[stackPtr++] = nIdx;
+                        }
+                    }
+                }
+                return count;
+            }
+
+            // --- BFS Pathfinding AI ---
             function getNextMove() {
-                const head = snake[0]; 
+                const head = snake[0];
+                
+                // CRITICAL FIX: Rebuild the occupancy grid perfectly before finding path
+                occBuf.fill(0);
+                for (let i = 0; i < snake.length; i++) {
+                    occBuf[snake[i].y * COLS + snake[i].x] = 1;
+                }
+                if (bomb.active) occBuf[bomb.y * COLS + bomb.x] = 1;
+                
+                // Treat tail as empty because it will move
+                if (snake.length > 1) {
+                    let tail = snake[snake.length - 1];
+                    occBuf[tail.y * COLS + tail.x] = 0; 
+                }
+
+                // BFS to Apple
                 visitedBuf.fill(0);
                 let headIdx = head.y * COLS + head.x, appleIdx = apple.y * COLS + apple.x;
                 let qHead = 0, qTail = 0; 
@@ -223,8 +265,7 @@
                         let nx = cx + d.x, ny = cy + d.y;
                         if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
                         let nIdx = ny * COLS + nx;
-                        // Treat snake body and active bomb as obstacles
-                        if (visitedBuf[nIdx] || occBuf[nIdx] || (bomb.active && nIdx === bomb.y * COLS + bomb.x)) continue;
+                        if (visitedBuf[nIdx] || occBuf[nIdx]) continue;
                         visitedBuf[nIdx] = 1; 
                         parentBuf[nIdx] = curr; 
                         queueBuf[qTail++] = nIdx;
@@ -233,92 +274,113 @@
 
                 if (found) {
                     let curr = appleIdx;
-                    while (parentBuf[curr] !== headIdx) { curr = parentBuf[curr]; if (curr === -1) return null; }
+                    while (parentBuf[curr] !== headIdx) { 
+                        curr = parentBuf[curr]; 
+                        if (curr === -1) return null; 
+                    }
                     return { x: (curr % COLS) - head.x, y: Math.floor(curr / COLS) - head.y };
                 }
 
-                // Fallback: If no path to food, just find any safe move to survive as long as possible (Creates Suspense!)
-                let safeMoves = [];
+                // Fallback: If trapped, find the move that gives the MOST free space (Survival Suspense)
+                let bestMove = null, maxSpace = -1;
                 for (let d of DIRS) {
                     let nx = head.x + d.x, ny = head.y + d.y;
-                    if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && !occBuf[ny * COLS + nx] && !(bomb.active && nx === bomb.x && ny === bomb.y)) {
-                        safeMoves.push(d);
+                    if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && !occBuf[ny * COLS + nx]) {
+                        let space = getFreeSpaceCount(nx, ny);
+                        if (space > maxSpace) {
+                            maxSpace = space;
+                            bestMove = d;
+                        }
                     }
                 }
-                return safeMoves.length > 0 ? safeMoves[Math.floor(Math.random() * safeMoves.length)] : null;
+                return bestMove;
             }
 
+            // --- Main Game Loop Logic ---
             function updateGame() {
                 if (isGameOver) return;
                 
-                // Randomly spawn bombs (approx every 4-5 seconds)
+                // Spawn bombs randomly
                 if (!bomb.active && Math.random() < 0.015) {
                     spawnBomb();
                 }
 
                 const nextDir = getNextMove();
                 if (!nextDir) { 
-                    showNotification("RECOVERING...", "#ff2d3f"); 
-                    resetRound(); return; 
+                    // NO SAFE MOVES LEFT: DIE
+                    playSound('bomb');
+                    showNotification("TRAPPED! RECOVERING...", "#ff2d3f"); 
+                    resetRound(); 
+                    return; 
                 }
                 
                 dir = nextDir; 
                 const head = snake[0];
                 const newHead = { x: head.x + dir.x, y: head.y + dir.y };
                 
+                // Check Wall / Self Collision
+                let isDead = false;
+                if (newHead.x < 0 || newHead.x >= COLS || newHead.y < 0 || newHead.y >= ROWS) isDead = true;
+                else {
+                    for (let i = 0; i < snake.length - 1; i++) { // Ignore tail as it moves
+                        if (snake[i].x === newHead.x && snake[i].y === newHead.y) {
+                            isDead = true; break;
+                        }
+                    }
+                }
+                
+                if (isDead) {
+                    playSound('bomb');
+                    showNotification("CRASHED! RECOVERING...", "#ff2d3f"); 
+                    resetRound(); return;
+                }
+                
                 snake.unshift(newHead); 
                 playSound('move');
 
-                // Check Bomb Collision
-                if (bomb.active && newHead.x === bomb.x && newHead.y === bomb.y) {
-                    playSound('bomb');
-                    bomb.active = false;
-                    if (snake.length > 3) snake.pop(); // Shrink length
-                    showNotification("BOOM! -1 LENGTH", "#ff2d3f");
-                }
-                // Check Apple Collision
-                else if (newHead.x === apple.x && newHead.y === apple.y) {
+                // Eat Apple
+                if (newHead.x === apple.x && newHead.y === apple.y) {
                     playSound('eat'); 
                     score += 10; 
                     totalApples++;
                     spawnApple();
-                } else { 
+                } 
+                // Hit Bomb
+                else if (bomb.active && newHead.x === bomb.x && newHead.y === bomb.y) {
+                    playSound('bomb');
+                    bomb.active = false;
+                    if (snake.length > 3) snake.pop(); // Shrink length
+                    showNotification("BOOM! -1 LENGTH", "#ff2d3f");
+                } 
+                // Normal Move
+                else { 
                     snake.pop(); 
                 }
                 
                 updateHUD();
             }
 
-            // --- Rendering ---
+            // --- Drawing ---
             function drawApple(cx, cy) {
                 const r = CELL * 0.35;
-                // Apple Body
-                ctx.fillStyle = '#ff2d3f';
-                ctx.shadowBlur = 15; ctx.shadowColor = '#ff2d3f';
+                ctx.fillStyle = '#ff2d3f'; ctx.shadowBlur = 15; ctx.shadowColor = '#ff2d3f';
                 ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-                // Apple Highlight
                 ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,0.4)';
                 ctx.beginPath(); ctx.arc(cx - r*0.3, cy - r*0.3, r*0.2, 0, Math.PI * 2); ctx.fill();
-                // Stem
                 ctx.strokeStyle = '#4a2c1a'; ctx.lineWidth = 3; ctx.beginPath(); 
                 ctx.moveTo(cx, cy - r); ctx.quadraticCurveTo(cx + 3, cy - r - 6, cx + 6, cy - r - 8); ctx.stroke();
-                // Leaf
                 ctx.fillStyle = '#22c55e'; ctx.beginPath();
                 ctx.ellipse(cx + 8, cy - r - 5, 6, 3, Math.PI / 4, 0, Math.PI * 2); ctx.fill();
             }
 
             function drawBomb(cx, cy) {
                 const r = CELL * 0.35;
-                // Bomb Body
                 ctx.fillStyle = '#1f2937'; ctx.shadowBlur = 10; ctx.shadowColor = '#000';
                 ctx.beginPath(); ctx.arc(cx, cy + 2, r, 0, Math.PI * 2); ctx.fill();
-                // Highlight
                 ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,0.2)';
                 ctx.beginPath(); ctx.arc(cx - r*0.3, cy - r*0.2, r*0.2, 0, Math.PI * 2); ctx.fill();
-                // Fuse
                 ctx.strokeStyle = '#b45309'; ctx.lineWidth = 3; ctx.beginPath();
                 ctx.moveTo(cx + 4, cy - r + 2); ctx.lineTo(cx + 8, cy - r - 8); ctx.stroke();
-                // Spark
                 ctx.fillStyle = '#fbbf24'; ctx.shadowBlur = 15; ctx.shadowColor = '#fbbf24';
                 ctx.beginPath(); ctx.arc(cx + 8, cy - r - 8, 4, 0, Math.PI * 2); ctx.fill();
             }
@@ -329,11 +391,9 @@
                 for (let i = 0; i <= COLS; i++) { ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, H); ctx.stroke(); }
                 for (let i = 0; i <= ROWS; i++) { ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(W, i * CELL); ctx.stroke(); }
 
-                // Draw Food & Bomb
                 drawApple(apple.x * CELL + CELL / 2, apple.y * CELL + CELL / 2);
                 if (bomb.active) drawBomb(bomb.x * CELL + CELL / 2, bomb.y * CELL + CELL / 2);
 
-                // Draw Snake (Unchanged Design)
                 for (let i = snake.length - 1; i >= 0; i--) {
                     const s = snake[i], sx = s.x * CELL + CELL / 2, sy = s.y * CELL + CELL / 2;
                     ctx.shadowBlur = i === 0 ? 15 : 5; ctx.shadowColor = '#22c55e';
