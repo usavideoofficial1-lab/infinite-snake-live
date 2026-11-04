@@ -3,100 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Auto Snake 24/7 - Endless Hard Mode</title>
+    <title>Endless Auto Snake Live</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body {
-            background-color: #000; color: #fff; font-family: 'Segoe UI', Tahoma, sans-serif;
+            background-color: #0d0d0d; color: #fff; font-family: 'Segoe UI', Tahoma, sans-serif;
             overflow: hidden; display: flex; justify-content: center; align-items: center;
             height: 100vh; height: 100dvh;
         }
-        #game-container {
+        #app {
             position: relative; width: 100vw; height: 100vh; height: 100dvh;
             max-width: calc(100vh * 9 / 16); max-height: calc(100vw * 16 / 9);
-            background-color: #050505; display: flex; flex-direction: column;
-            overflow: hidden; box-shadow: 0 0 30px rgba(0, 255, 100, 0.1);
+            background-color: #000; display: flex; flex-direction: column;
+            overflow: hidden; box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
         }
-        .hud-top, .hud-bottom {
-            background: rgba(10, 20, 15, 0.95); z-index: 10; padding: 8px 15px;
-            border-bottom: 1px solid rgba(0, 255, 100, 0.2); flex-shrink: 0;
+        
+        /* Top UI - Simulating the Screenshot */
+        .top-ui { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+        
+        .sub-notify {
+            display: flex; align-items: center; justify-content: space-between;
         }
-        .hud-bottom { border-bottom: none; border-top: 1px solid rgba(0, 255, 100, 0.2); padding-bottom: 12px; }
-        .hud-top { display: flex; justify-content: space-between; align-items: center; }
-        .hud-box { display: flex; flex-direction: column; }
-        .hud-box.center { align-items: center; }
-        .hud-box.right { align-items: flex-end; }
-        .label { font-size: 10px; color: #4a8a60; font-weight: bold; letter-spacing: 1px; }
-        .value { font-size: 22px; color: #4ade80; font-weight: 800; text-shadow: 0 0 10px rgba(74, 222, 128, 0.5); }
-        .value.small { font-size: 14px; }
-        .value.gift { color: #fbbf24; font-size: 11px; }
-        .value.hard { color: #ff2d3f; text-shadow: 0 0 10px rgba(255, 45, 63, 0.5); font-size: 16px;}
-        .live-badge { display: flex; align-items: center; gap: 6px; color: #ff2d3f; font-weight: bold; font-size: 14px; letter-spacing: 2px; }
-        .live-badge .dot { width: 8px; height: 8px; background: #ff2d3f; border-radius: 50%; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.8); } }
-        .canvas-wrapper { flex: 1; position: relative; display: flex; justify-content: center; align-items: center; background: #000; overflow: hidden; }
-        canvas { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+        .sub-box {
+            border: 2px solid #ef4444; border-radius: 8px; padding: 4px 10px;
+            display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.5);
+        }
+        .sub-box span { font-size: 11px; font-weight: bold; color: #fff; }
+        .sub-box .bell { color: #fbbf24; font-size: 14px; }
+        
+        .level-box {
+            border: 2px solid #eab308; border-radius: 20px; padding: 4px 15px;
+            font-size: 12px; font-weight: 900; color: #fde047;
+            text-shadow: 0 0 5px #eab308; background: rgba(0,0,0,0.7);
+        }
+
+        .gifts-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            background: #1f2937; border-radius: 20px; padding: 4px 10px;
+            font-size: 10px; font-weight: bold;
+        }
+        .likes-pill {
+            background: #374151; padding: 3px 10px; border-radius: 12px;
+            display: flex; align-items: center; gap: 5px; font-size: 10px;
+            border: 1px solid #4b5563;
+        }
+        .gifts-row {
+            display: flex; justify-content: space-between; padding: 5px 12px;
+            gap: 4px;
+        }
+        .gift-item {
+            display: flex; flex-direction: column; align-items: center;
+            background: #111827; padding: 6px 4px; border-radius: 8px;
+            flex: 1; border: 1px solid #374151; font-size: 8px; color: #9ca3af;
+        }
+        .gift-item .icon { font-size: 16px; margin-bottom: 2px; }
+
+        /* Game Canvas Area */
+        .canvas-wrapper { 
+            flex: 1; display: flex; justify-content: center; align-items: center; 
+            background: #000; position: relative; padding: 0 10px;
+        }
+        canvas { 
+            display: block; max-width: 100%; max-height: 100%; 
+            border: 2px solid #6b8e23; box-shadow: 0 0 15px rgba(107, 142, 35, 0.4);
+        }
+        
+        /* Notification */
         .notification {
             position: absolute; top: 10%; left: 50%; transform: translate(-50%, -20px);
             background: rgba(0, 0, 0, 0.9); border: 1px solid #4ade80; padding: 10px 20px;
             border-radius: 8px; font-size: 16px; font-weight: bold; color: #4ade80;
             text-shadow: 0 0 10px #4ade80; opacity: 0; transition: all 0.3s ease;
-            pointer-events: none; text-align: center; box-shadow: 0 0 20px rgba(74, 222, 128, 0.3); z-index: 20; width: 80%;
+            pointer-events: none; text-align: center; z-index: 20; width: 80%;
         }
         .notification.show { opacity: 1; transform: translate(-50%, 0); }
-        .stats-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
-        .stat-box { display: flex; flex-direction: column; align-items: center; }
-        .progress-text { display: flex; justify-content: space-between; font-size: 9px; color: #4a8a60; font-weight: bold; margin-bottom: 4px; }
-        .progress-bar-bg { width: 100%; height: 6px; background: rgba(74, 222, 128, 0.2); border-radius: 3px; overflow: hidden; }
-        .progress-bar-fill { height: 100%; width: 100%; background: #4ade80; box-shadow: 0 0 10px #4ade80; }
+
+        /* Bottom Text */
+        .bottom-text {
+            text-align: center; font-size: 36px; font-weight: 900; color: #fff;
+            padding: 10px 0; font-family: 'Arial', sans-serif;
+        }
+        .bottom-text span { color: #ff2d3f; }
     </style>
 </head>
 <body>
-    <div id="game-container">
-        <div class="hud-top">
-            <div class="hud-box">
-                <span class="label">MODE</span>
-                <span class="value hard">HARD</span>
+    <div id="app">
+        <!-- Top UI -->
+        <div class="top-ui">
+            <div class="sub-notify">
+                <div class="sub-box">
+                    <span class="bell">🔔</span>
+                    <span>@top_supporter<br><span style="color:#9ca3af; font-weight:normal; font-size:9px;">thanks for subscribing!</span></span>
+                </div>
+                <div class="level-box" id="ui-level">LEVEL 1</div>
             </div>
-            <div class="hud-box center">
-                <div class="live-badge"><span class="dot"></span> LIVE</div>
+            
+            <div class="gifts-bar">
+                <span>Game play gifts:</span>
+                <div class="likes-pill">👍 LIKES <span id="ui-likes">1013</span> / 2000 <span style="color:#4ade80;">+50</span></div>
             </div>
-            <div class="hud-box right">
-                <span class="label">SCORE</span>
-                <span class="value" id="ui-score">0</span>
+            
+            <div class="gifts-row">
+                <div class="gift-item"><span class="icon">⭐</span>Star<br>+2</div>
+                <div class="gift-item"><span class="icon">🦴</span>Bone<br>+5</div>
+                <div class="gift-item"><span class="icon">🪙</span>Coin<br>+10</div>
+                <div class="gift-item"><span class="icon">🎁</span>Box<br>+10</div>
+                <div class="gift-item"><span class="icon">🎉</span>Party<br>+20</div>
+                <div class="gift-item"><span class="icon">💩</span>Poop<br>+60</div>
+                <div class="gift-item"><span class="icon">🦖</span>Dino<br>+250</div>
+                <div class="gift-item"><span class="icon">👾</span>Super<br>+10000</div>
             </div>
         </div>
 
+        <!-- Game Area -->
         <div class="canvas-wrapper">
-            <canvas id="gameCanvas" width="720" height="1280"></canvas>
+            <canvas id="gameCanvas" width="720" height="720"></canvas>
             <div id="notification" class="notification"></div>
         </div>
 
-        <div class="hud-bottom">
-            <div class="stats-row">
-                <div class="stat-box">
-                    <span class="label">TOTAL APPLES</span>
-                    <span class="value small" id="ui-apples">0</span>
-                </div>
-                <div class="stat-box">
-                    <span class="label">SNAKE LENGTH</span>
-                    <span class="value small" id="ui-length">5</span>
-                </div>
-                <div class="stat-box">
-                    <span class="label">LAST GIFT</span>
-                    <span class="value small gift" id="ui-gift">—</span>
-                </div>
-            </div>
-            <div class="progress-container">
-                <div class="progress-text">
-                    <span>ENDLESS SURVIVAL</span>
-                    <span>SUSPENSE ACTIVE</span>
-                </div>
-                <div class="progress-bar-bg">
-                    <div class="progress-bar-fill"></div>
-                </div>
-            </div>
-        </div>
+        <!-- Bottom Text -->
+        <div class="bottom-text">67<span>=</span>ban</div>
     </div>
         <script>
         window.onerror = function(msg) {
@@ -110,19 +136,17 @@
 
         (function() {
             'use strict';
-            const COLS = 18, ROWS = 32, CELL = 40, W = COLS * CELL, H = ROWS * CELL;
-            const TICK_SPEED = 75; // Fast, hard mode constant speed
+            const COLS = 22, ROWS = 22, CELL = 32, W = COLS * CELL, H = ROWS * CELL;
+            const TICK_SPEED = 75; 
             const canvas = document.getElementById('gameCanvas');
             const ctx = canvas.getContext('2d', { alpha: false });
             const ui = {
-                score: document.getElementById('ui-score'),
-                apples: document.getElementById('ui-apples'),
-                length: document.getElementById('ui-length'),
-                gift: document.getElementById('ui-gift'),
+                level: document.getElementById('ui-level'),
+                likes: document.getElementById('ui-likes'),
                 notif: document.getElementById('notification')
             };
 
-            // --- Audio Engine ---
+            // --- Audio ---
             let audioCtx = null;
             const initAudio = () => {
                 if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} }
@@ -140,7 +164,7 @@
                     if (type === 'move') {
                         osc.type = 'square'; osc.frequency.setValueAtTime(150, now);
                         osc.frequency.exponentialRampToValueAtTime(100, now + 0.03);
-                        gain.gain.setValueAtTime(0.03, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+                        gain.gain.setValueAtTime(0.02, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
                         osc.start(now); osc.stop(now + 0.04);
                     } else if (type === 'eat') {
                         osc.type = 'sine'; osc.frequency.setValueAtTime(600, now);
@@ -158,12 +182,12 @@
 
             // --- Game State ---
             let snake = [], dir = { x: 1, y: 0 };
-            let apple = { x: 0, y: 0 };
-            let bomb = { x: -1, y: -1, active: false };
-            let score = 0, totalApples = 0;
-            let lastTick = 0, isGameOver = false;
+            let apples = []; 
+            let bombs = [];  
+            let level = 1, likes = 1013;
+            let lastTick = 0;
 
-            // --- Optimization Buffers (Zero-GC for 24/7 stability) ---
+            // --- Optimization Buffers ---
             const occBuf = new Uint8Array(COLS * ROWS), visitedBuf = new Int32Array(COLS * ROWS);
             const queueBuf = new Int32Array(COLS * ROWS), parentBuf = new Int32Array(COLS * ROWS);
             const ffVisited = new Uint8Array(COLS * ROWS), ffStack = new Int32Array(COLS * ROWS);
@@ -173,107 +197,107 @@
                 const cy = Math.floor(ROWS / 2); snake = [];
                 for (let i = 0; i < 5; i++) snake.push({ x: 4 - i, y: cy });
                 dir = { x: 1, y: 0 }; 
-                bomb.active = false;
-                spawnApple(); 
-                isGameOver = false;
+                bombs = []; 
+                apples = [];
+                spawnApples(); 
             }
 
-            function spawnApple() {
-                let freeCells = [];
-                for (let i = 0; i < COLS * ROWS; i++) {
-                    let x = i % COLS, y = Math.floor(i / COLS);
-                    let isSnake = snake.some(s => s.x === x && s.y === y);
-                    let isBomb = bomb.active && (bomb.x === x && bomb.y === y);
-                    if (!isSnake && !isBomb) freeCells.push(i);
-                }
-                if (freeCells.length > 0) {
-                    const idx = freeCells[Math.floor(Math.random() * freeCells.length)];
-                    apple = { x: idx % COLS, y: Math.floor(idx / COLS) };
+            function spawnApples() {
+                while (apples.length < 2) {
+                    let freeCells = [];
+                    for (let i = 0; i < COLS * ROWS; i++) {
+                        let x = i % COLS, y = Math.floor(i / COLS);
+                        let isSnake = snake.some(s => s.x === x && s.y === y);
+                        let isApple = apples.some(a => a.x === x && a.y === y);
+                        let isBomb = bombs.some(b => b.x === x && b.y === y);
+                        if (!isSnake && !isApple && !isBomb) freeCells.push(i);
+                    }
+                    if (freeCells.length > 0) {
+                        const idx = freeCells[Math.floor(Math.random() * freeCells.length)];
+                        apples.push({ x: idx % COLS, y: Math.floor(idx / COLS) });
+                    } else break;
                 }
             }
 
             function spawnBomb() {
-                if (bomb.active) return;
+                if (bombs.length >= 2) return; // Max 2 bombs at a time
                 let freeCells = [];
-                for (let i = 0; i < COLS * ROWS; i++) {
-                    let x = i % COLS, y = Math.floor(i / COLS);
+                for (let j = 0; j < COLS * ROWS; j++) {
+                    let x = j % COLS, y = Math.floor(j / COLS);
                     let isSnake = snake.some(s => s.x === x && s.y === y);
-                    let isApple = (apple.x === x && apple.y === y);
-                    if (!isSnake && !isApple) freeCells.push(i);
+                    let isApple = apples.some(a => a.x === x && a.y === y);
+                    let isBomb = bombs.some(b => b.x === x && b.y === y);
+                    if (!isSnake && !isApple && !isBomb) freeCells.push(j);
                 }
                 if (freeCells.length > 0) {
                     const idx = freeCells[Math.floor(Math.random() * freeCells.length)];
-                    bomb = { x: idx % COLS, y: Math.floor(idx / COLS), active: true };
+                    bombs.push({ x: idx % COLS, y: Math.floor(idx / COLS) });
                 }
             }
 
-            // --- Flood Fill for Survival Fallback ---
             function getFreeSpaceCount(startX, startY) {
                 ffVisited.fill(0);
                 let stackPtr = 0, count = 0;
                 ffStack[stackPtr++] = startY * COLS + startX;
                 ffVisited[startY * COLS + startX] = 1;
-                
                 while (stackPtr > 0) {
-                    let curr = ffStack[--stackPtr];
-                    count++;
+                    let curr = ffStack[--stackPtr]; count++;
                     let cx = curr % COLS, cy = Math.floor(curr / COLS);
                     for (let d of DIRS) {
                         let nx = cx + d.x, ny = cy + d.y;
                         if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
                         let nIdx = ny * COLS + nx;
                         if (!ffVisited[nIdx] && !occBuf[nIdx]) {
-                            ffVisited[nIdx] = 1;
-                            ffStack[stackPtr++] = nIdx;
+                            ffVisited[nIdx] = 1; ffStack[stackPtr++] = nIdx;
                         }
                     }
                 }
                 return count;
             }
 
-            // --- BFS Pathfinding AI ---
             function getNextMove() {
                 const head = snake[0];
-                
-                // CRITICAL FIX: Rebuild the occupancy grid perfectly before finding path
                 occBuf.fill(0);
-                for (let i = 0; i < snake.length; i++) {
-                    occBuf[snake[i].y * COLS + snake[i].x] = 1;
-                }
-                if (bomb.active) occBuf[bomb.y * COLS + bomb.x] = 1;
-                
-                // Treat tail as empty because it will move
+                for (let i = 0; i < snake.length; i++) occBuf[snake[i].y * COLS + snake[i].x] = 1;
                 if (snake.length > 1) {
                     let tail = snake[snake.length - 1];
                     occBuf[tail.y * COLS + tail.x] = 0; 
                 }
 
-                // BFS to Apple
+                // AI targets Apples
+                let targetList = apples;
+                if (targetList.length === 0) return null;
+
+                // BFS to find closest Apple
                 visitedBuf.fill(0);
-                let headIdx = head.y * COLS + head.x, appleIdx = apple.y * COLS + apple.x;
+                let headIdx = head.y * COLS + head.x;
                 let qHead = 0, qTail = 0; 
                 queueBuf[qTail++] = headIdx;
                 visitedBuf[headIdx] = 1; 
                 parentBuf[headIdx] = -1; 
-                let found = false;
+                
+                let foundTarget = null;
 
                 while (qHead < qTail) {
                     let curr = queueBuf[qHead++];
-                    if (curr === appleIdx) { found = true; break; }
                     let cx = curr % COLS, cy = Math.floor(curr / COLS);
+                    
+                    let isTarget = targetList.some(t => t.x === cx && t.y === cy);
+                    if (isTarget) { foundTarget = curr; break; }
+
                     for (let d of DIRS) {
                         let nx = cx + d.x, ny = cy + d.y;
                         if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
                         let nIdx = ny * COLS + nx;
-                        if (visitedBuf[nIdx] || occBuf[nIdx]) continue;
+                        if (visitedBuf[nIdx] || occBuf[nIdx]) continue; // Avoid snake body
                         visitedBuf[nIdx] = 1; 
                         parentBuf[nIdx] = curr; 
                         queueBuf[qTail++] = nIdx;
                     }
                 }
 
-                if (found) {
-                    let curr = appleIdx;
+                if (foundTarget !== null) {
+                    let curr = foundTarget;
                     while (parentBuf[curr] !== headIdx) { 
                         curr = parentBuf[curr]; 
                         if (curr === -1) return null; 
@@ -281,35 +305,30 @@
                     return { x: (curr % COLS) - head.x, y: Math.floor(curr / COLS) - head.y };
                 }
 
-                // Fallback: If trapped, find the move that gives the MOST free space (Survival Suspense)
+                // Survival Fallback
                 let bestMove = null, maxSpace = -1;
                 for (let d of DIRS) {
                     let nx = head.x + d.x, ny = head.y + d.y;
                     if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && !occBuf[ny * COLS + nx]) {
                         let space = getFreeSpaceCount(nx, ny);
-                        if (space > maxSpace) {
-                            maxSpace = space;
-                            bestMove = d;
-                        }
+                        if (space > maxSpace) { maxSpace = space; bestMove = d; }
                     }
                 }
                 return bestMove;
             }
 
-            // --- Main Game Loop Logic ---
             function updateGame() {
-                if (isGameOver) return;
-                
-                // Spawn bombs randomly
-                if (!bomb.active && Math.random() < 0.015) {
+                // Randomly spawn bombs
+                if (bombs.length < 2 && Math.random() < 0.03) {
                     spawnBomb();
                 }
 
                 const nextDir = getNextMove();
                 if (!nextDir) { 
-                    // NO SAFE MOVES LEFT: DIE
-                    playSound('bomb');
-                    showNotification("TRAPPED! RECOVERING...", "#ff2d3f"); 
+                    // TRAPPED -> LEVEL UP (Infinite Game)
+                    level++;
+                    ui.level.textContent = "LEVEL " + level;
+                    showNotification("LEVEL UP! CONTINUING...", "#eab308"); 
                     resetRound(); 
                     return; 
                 }
@@ -318,95 +337,73 @@
                 const head = snake[0];
                 const newHead = { x: head.x + dir.x, y: head.y + dir.y };
                 
-                // Check Wall / Self Collision
-                let isDead = false;
-                if (newHead.x < 0 || newHead.x >= COLS || newHead.y < 0 || newHead.y >= ROWS) isDead = true;
-                else {
-                    for (let i = 0; i < snake.length - 1; i++) { // Ignore tail as it moves
-                        if (snake[i].x === newHead.x && snake[i].y === newHead.y) {
-                            isDead = true; break;
-                        }
-                    }
-                }
-                
-                if (isDead) {
-                    playSound('bomb');
-                    showNotification("CRASHED! RECOVERING...", "#ff2d3f"); 
-                    resetRound(); return;
-                }
-                
                 snake.unshift(newHead); 
                 playSound('move');
 
-                // Eat Apple
-                if (newHead.x === apple.x && newHead.y === apple.y) {
-                    playSound('eat'); 
-                    score += 10; 
-                    totalApples++;
-                    spawnApple();
-                } 
-                // Hit Bomb
-                else if (bomb.active && newHead.x === bomb.x && newHead.y === bomb.y) {
+                // Check Bomb Collision
+                let bombIdx = bombs.findIndex(b => b.x === newHead.x && b.y === newHead.y);
+                if (bombIdx !== -1) {
                     playSound('bomb');
-                    bomb.active = false;
-                    if (snake.length > 3) snake.pop(); // Shrink length
-                    showNotification("BOOM! -1 LENGTH", "#ff2d3f");
+                    bombs.splice(bombIdx, 1);
+                    if (snake.length > 3) snake.pop(); // Decrease exactly 1 step
+                    showNotification("BOOM! -1 LENGTH", "#ef4444");
                 } 
-                // Normal Move
-                else { 
-                    snake.pop(); 
+                // Check Apple Collision
+                else {
+                    let appleIdx = apples.findIndex(a => a.x === newHead.x && a.y === newHead.y);
+                    if (appleIdx !== -1) {
+                        playSound('eat'); 
+                        likes += 5;
+                        ui.likes.textContent = likes;
+                        apples.splice(appleIdx, 1);
+                        spawnApples(); 
+                    } else { 
+                        snake.pop(); 
+                    }
                 }
-                
-                updateHUD();
             }
 
             // --- Drawing ---
             function drawApple(cx, cy) {
                 const r = CELL * 0.35;
-                ctx.fillStyle = '#ff2d3f'; ctx.shadowBlur = 15; ctx.shadowColor = '#ff2d3f';
+                ctx.fillStyle = '#4ade80'; ctx.shadowBlur = 10; ctx.shadowColor = '#4ade80';
                 ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
                 ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,0.4)';
                 ctx.beginPath(); ctx.arc(cx - r*0.3, cy - r*0.3, r*0.2, 0, Math.PI * 2); ctx.fill();
-                ctx.strokeStyle = '#4a2c1a'; ctx.lineWidth = 3; ctx.beginPath(); 
-                ctx.moveTo(cx, cy - r); ctx.quadraticCurveTo(cx + 3, cy - r - 6, cx + 6, cy - r - 8); ctx.stroke();
-                ctx.fillStyle = '#22c55e'; ctx.beginPath();
-                ctx.ellipse(cx + 8, cy - r - 5, 6, 3, Math.PI / 4, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#166534'; ctx.fillRect(cx-1, cy-r-3, 2, 4);
             }
 
             function drawBomb(cx, cy) {
                 const r = CELL * 0.35;
-                ctx.fillStyle = '#1f2937'; ctx.shadowBlur = 10; ctx.shadowColor = '#000';
+                ctx.fillStyle = '#111'; ctx.shadowBlur = 10; ctx.shadowColor = '#ef4444';
                 ctx.beginPath(); ctx.arc(cx, cy + 2, r, 0, Math.PI * 2); ctx.fill();
                 ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,0.2)';
                 ctx.beginPath(); ctx.arc(cx - r*0.3, cy - r*0.2, r*0.2, 0, Math.PI * 2); ctx.fill();
                 ctx.strokeStyle = '#b45309'; ctx.lineWidth = 3; ctx.beginPath();
                 ctx.moveTo(cx + 4, cy - r + 2); ctx.lineTo(cx + 8, cy - r - 8); ctx.stroke();
-                ctx.fillStyle = '#fbbf24'; ctx.shadowBlur = 15; ctx.shadowColor = '#fbbf24';
+                ctx.fillStyle = '#ef4444'; ctx.shadowBlur = 15; ctx.shadowColor = '#ef4444';
                 ctx.beginPath(); ctx.arc(cx + 8, cy - r - 8, 4, 0, Math.PI * 2); ctx.fill();
             }
 
             function draw() {
                 ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)'; ctx.lineWidth = 1;
-                for (let i = 0; i <= COLS; i++) { ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, H); ctx.stroke(); }
-                for (let i = 0; i <= ROWS; i++) { ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(W, i * CELL); ctx.stroke(); }
 
-                drawApple(apple.x * CELL + CELL / 2, apple.y * CELL + CELL / 2);
-                if (bomb.active) drawBomb(bomb.x * CELL + CELL / 2, bomb.y * CELL + CELL / 2);
+                apples.forEach(a => drawApple(a.x * CELL + CELL / 2, a.y * CELL + CELL / 2));
+                bombs.forEach(b => drawBomb(b.x * CELL + CELL / 2, b.y * CELL + CELL / 2));
 
                 for (let i = snake.length - 1; i >= 0; i--) {
                     const s = snake[i], sx = s.x * CELL + CELL / 2, sy = s.y * CELL + CELL / 2;
-                    ctx.shadowBlur = i === 0 ? 15 : 5; ctx.shadowColor = '#22c55e';
-                    ctx.fillStyle = i === 0 ? '#4ade80' : '#16a34a';
-                    ctx.beginPath(); ctx.arc(sx, sy, CELL * 0.4, 0, Math.PI * 2); ctx.fill();
-                    if (i > 0) {
-                        ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.beginPath();
-                        ctx.arc(sx - 3, sy - 3, CELL * 0.15, 0, Math.PI * 2); ctx.fill();
-                    }
+                    ctx.fillStyle = i === 0 ? '#8fbc8f' : '#6b8e23';
+                    ctx.shadowBlur = i === 0 ? 10 : 0; ctx.shadowColor = '#6b8e23';
+                    
+                    ctx.beginPath(); 
+                    ctx.roundRect(sx - CELL*0.4, sy - CELL*0.4, CELL*0.8, CELL*0.8, 8); 
+                    ctx.fill();
+
                     if (i === 0) {
                         ctx.fillStyle = '#000'; ctx.shadowBlur = 0;
-                        let eye1X = sx + (dir.x * 6) - (dir.y * 6), eye1Y = sy + (dir.y * 6) + (dir.x * 6);
-                        let eye2X = sx + (dir.x * 6) + (dir.y * 6), eye2Y = sy + (dir.y * 6) - (dir.x * 6);
+                        let eye1X = sx + (dir.x * 5) - (dir.y * 6), eye1Y = sy + (dir.y * 5) + (dir.x * 6);
+                        let eye2X = sx + (dir.x * 5) + (dir.y * 6), eye2Y = sy + (dir.y * 5) - (dir.x * 6);
                         ctx.beginPath(); ctx.arc(eye1X, eye1Y, 3, 0, Math.PI * 2); ctx.fill();
                         ctx.beginPath(); ctx.arc(eye2X, eye2Y, 3, 0, Math.PI * 2); ctx.fill();
                     }
@@ -421,13 +418,6 @@
                 notifTimeout = setTimeout(() => ui.notif.classList.remove('show'), 2000);
             }
 
-            function updateHUD() {
-                ui.score.textContent = score.toLocaleString();
-                ui.apples.textContent = totalApples; 
-                ui.length.textContent = snake.length;
-                if (totalApples > 0 && totalApples % 7 === 0) ui.gift.textContent = "BONUS +50";
-            }
-
             function loop(time) {
                 requestAnimationFrame(loop);
                 if (!lastTick) lastTick = time;
@@ -435,7 +425,7 @@
                 draw();
             }
 
-            try { resetRound(); updateHUD(); requestAnimationFrame(loop); } 
+            try { resetRound(); requestAnimationFrame(loop); } 
             catch (e) { window.onerror(e.message, "inline", 0); }
 
             document.addEventListener('visibilitychange', () => { if (!document.hidden) lastTick = performance.now(); });
