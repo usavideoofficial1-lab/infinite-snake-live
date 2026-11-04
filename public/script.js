@@ -1,4 +1,15 @@
-(() => {
+window.onerror = function(msg, url, line) {
+    const notif = document.getElementById('notification');
+    if(notif) {
+        notif.textContent = "ERROR: " + msg;
+        notif.style.color = "#ff0000";
+        notif.style.borderColor = "#ff0000";
+        notif.classList.add('show');
+    }
+    return false;
+};
+
+(function() {
     'use strict';
 
     // --- Configuration ---
@@ -24,46 +35,49 @@
         notif: document.getElementById('notification')
     };
 
-    // --- Web Audio API (Procedural Sound Effects) ---
+    // --- Web Audio API ---
     let audioCtx = null;
     const initAudio = () => {
         if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch(e) {
+                console.log("Audio not supported");
+            }
         }
-        if (audioCtx.state === 'suspended') audioCtx.resume();
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
     };
     
-    // Unlock audio on first user interaction
     window.addEventListener('click', initAudio, { once: true });
-    window.addEventListener('keydown', initAudio, { once: true });
+    window.addEventListener('touchstart', initAudio, { once: true });
 
     const playSound = (type) => {
         if (!audioCtx) return;
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        const now = audioCtx.currentTime;
+        try {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
 
-        if (type === 'move') {
-            // Mechanical Keyboard Click Sound
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(150, now);
-            osc.frequency.exponentialRampToValueAtTime(100, now + 0.03);
-            gain.gain.setValueAtTime(0.03, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-            osc.start(now);
-            osc.stop(now + 0.04);
-        } else if (type === 'eat') {
-            // Food Eating (Coin/Pop) Sound
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(600, now);
-            osc.frequency.setValueAtTime(900, now + 0.1);
-            gain.gain.setValueAtTime(0.08, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-            osc.start(now);
-            osc.stop(now + 0.3);
-        }
+            if (type === 'move') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.03);
+                gain.gain.setValueAtTime(0.03, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+                osc.start(now);
+                osc.stop(now + 0.04);
+            } else if (type === 'eat') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.setValueAtTime(900, now + 0.1);
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            }
+        } catch(e) {}
     };
 
     // --- Game State ---
@@ -76,12 +90,11 @@
     let lastTick = 0;
     let isGameOver = false;
 
-    // --- Optimization Buffers (Prevents Memory Leaks over 24h) ---
+    // --- Buffers ---
     const occBuf = new Uint8Array(COLS * ROWS);
     const visitedBuf = new Int32Array(COLS * ROWS);
     const queueBuf = new Int32Array(COLS * ROWS);
     const parentBuf = new Int32Array(COLS * ROWS);
-
     const DIRS = [{x:1,y:0}, {x:-1,y:0}, {x:0,y:1}, {x:0,y:-1}];
 
     // --- Initialization ---
@@ -97,98 +110,71 @@
     function spawnFood() {
         occBuf.fill(0);
         snake.forEach(s => occBuf[s.y * COLS + s.x] = 1);
-
         let freeCells = [];
         for (let i = 0; i < COLS * ROWS; i++) {
             if (!occBuf[i]) freeCells.push(i);
         }
-
         if (freeCells.length === 0) return resetRound();
-        
         const idx = freeCells[Math.floor(Math.random() * freeCells.length)];
         food = { x: idx % COLS, y: Math.floor(idx / COLS) };
     }
 
-    // --- AI Pathfinding (BFS Algorithm) ---
+    // --- AI Pathfinding ---
     function getNextMove() {
         const head = snake[0];
         visitedBuf.fill(0);
-        
-        let headIdx = head.y * COLS + head.x;
-        let foodIdx = food.y * COLS + food.x;
-
+        let headIdx = head.y * COLS + head.x, foodIdx = food.y * COLS + food.x;
         let qHead = 0, qTail = 0;
-        queueBuf[qTail++] = headIdx;
-        visitedBuf[headIdx] = 1;
+        queueBuf[qTail++] = headIdx; 
+        visitedBuf[headIdx] = 1; 
         parentBuf[headIdx] = -1;
-
         let found = false;
 
         while (qHead < qTail) {
             let curr = queueBuf[qHead++];
-            if (curr === foodIdx) {
-                found = true;
-                break;
-            }
-
-            let cx = curr % COLS;
-            let cy = Math.floor(curr / COLS);
-
+            if (curr === foodIdx) { found = true; break; }
+            let cx = curr % COLS, cy = Math.floor(curr / COLS);
             for (let d of DIRS) {
-                let nx = cx + d.x;
-                let ny = cy + d.y;
+                let nx = cx + d.x, ny = cy + d.y;
                 if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
-
                 let nIdx = ny * COLS + nx;
                 if (visitedBuf[nIdx] || occBuf[nIdx]) continue;
-
-                visitedBuf[nIdx] = 1;
-                parentBuf[nIdx] = curr;
+                visitedBuf[nIdx] = 1; 
+                parentBuf[nIdx] = curr; 
                 queueBuf[qTail++] = nIdx;
             }
         }
 
         if (found) {
-            // Trace back the path to find the first step
             let curr = foodIdx;
             while (parentBuf[curr] !== headIdx) {
                 curr = parentBuf[curr];
+                if (curr === -1) return null; // Safety catch
             }
-            let nx = curr % COLS;
-            let ny = Math.floor(curr / COLS);
-            return { x: nx - head.x, y: ny - head.y };
+            return { x: (curr % COLS) - head.x, y: Math.floor(curr / COLS) - head.y };
         }
 
-        // Fallback: If trapped, find any safe move to avoid immediate crash
         let safeMoves = [];
         for (let d of DIRS) {
-            let nx = head.x + d.x;
-            let ny = head.y + d.y;
-            if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && !occBuf[ny * COLS + nx]) {
-                safeMoves.push(d);
-            }
+            let nx = head.x + d.x, ny = head.y + d.y;
+            if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && !occBuf[ny * COLS + nx]) safeMoves.push(d);
         }
-        if (safeMoves.length > 0) return safeMoves[Math.floor(Math.random() * safeMoves.length)];
-        
-        return null; // Completely trapped
+        return safeMoves.length > 0 ? safeMoves[Math.floor(Math.random() * safeMoves.length)] : null;
     }
 
-    // --- Game Loop Logic ---
+    // --- Game Loop ---
     function updateGame() {
         if (isGameOver) return;
-
         const nextDir = getNextMove();
         if (!nextDir) {
-            // Auto-Recovery: Snake got trapped
             showNotification("AUTO RECOVERY...", "#ff2d3f");
             resetRound();
             return;
         }
-
         dir = nextDir;
         const head = snake[0];
         const newHead = { x: head.x + dir.x, y: head.y + dir.y };
-
+        
         snake.unshift(newHead);
         playSound('move');
 
@@ -197,16 +183,11 @@
             score += 10 * level;
             totalApples++;
             applesInLevel++;
-            
-            if (applesInLevel >= applesNeeded) {
-                levelUp();
-            } else {
-                spawnFood();
-            }
+            if (applesInLevel >= applesNeeded) levelUp(); 
+            else spawnFood();
         } else {
             snake.pop();
         }
-
         updateHUD();
     }
 
@@ -215,7 +196,6 @@
         applesInLevel = 0;
         applesNeeded = 5 + (level * 2);
         tickMs = Math.max(TICK_MIN, TICK_MAX - (level * 5));
-        
         showNotification(`LEVEL ${level}`, "#4ade80");
         spawnFood();
     }
@@ -225,7 +205,6 @@
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, W, H);
 
-        // Subtle Grid
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
         ctx.lineWidth = 1;
         for (let i = 0; i <= COLS; i++) {
@@ -235,7 +214,7 @@
             ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(W, i * CELL); ctx.stroke();
         }
 
-        // Draw Food (Apple)
+        // Draw Food
         const fx = food.x * CELL + CELL / 2;
         const fy = food.y * CELL + CELL / 2;
         ctx.shadowBlur = 20;
@@ -272,7 +251,6 @@
                 ctx.fill();
             }
             
-            // Draw Eyes
             if (i === 0) {
                 ctx.fillStyle = '#000';
                 ctx.shadowBlur = 0;
@@ -285,18 +263,16 @@
                 ctx.beginPath(); ctx.arc(eye2X, eye2Y, 3, 0, Math.PI * 2); ctx.fill();
             }
         }
-        
         ctx.shadowBlur = 0;
     }
 
-    // --- UI & Notifications ---
+    // --- UI ---
     let notifTimeout = null;
     function showNotification(text, color) {
         ui.notif.textContent = text;
         ui.notif.style.color = color;
         ui.notif.style.borderColor = color;
         ui.notif.classList.add('show');
-        
         clearTimeout(notifTimeout);
         notifTimeout = setTimeout(() => {
             ui.notif.classList.remove('show');
@@ -321,28 +297,26 @@
     // --- Main Loop ---
     function loop(time) {
         requestAnimationFrame(loop);
-        
         if (!lastTick) lastTick = time;
         const elapsed = time - lastTick;
-
         if (elapsed >= tickMs) {
             updateGame();
             lastTick = time;
         }
-
         draw();
     }
 
     // Start Game
-    resetRound();
-    updateHUD();
-    requestAnimationFrame(loop);
+    try {
+        resetRound();
+        updateHUD();
+        requestAnimationFrame(loop);
+    } catch (e) {
+        window.onerror(e.message, "script.js", 0);
+    }
 
-    // Handle Tab Visibility (Prevents speed glitches when minimized)
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-            lastTick = performance.now();
-        }
+        if (!document.hidden) lastTick = performance.now();
     });
 
 })();
