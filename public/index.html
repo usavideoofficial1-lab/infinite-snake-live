@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Grandma Game Snake - 24/7 Live</title>
+    <title>Grandma Game Snake - Open Field</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&display=swap');
 
@@ -74,7 +74,6 @@
             padding: 5px 10px; overflow: hidden;
         }
 
-        /* Perfect Square Canvas in 9:16 */
         canvas {
             display: block; 
             width: 100%; 
@@ -131,7 +130,7 @@
 
         <!-- Game Area -->
         <div class="canvas-wrapper">
-            <!-- Internal resolution 690x690 (23x23 grid) -->
+            <!-- Grid size: 23x23 = 529 cells. CELL = 30px -->
             <canvas id="gameCanvas" width="690" height="690"></canvas>
             
             <div class="level-up-overlay" id="levelUpOverlay">
@@ -149,12 +148,12 @@
             'use strict';
 
             // --- Configuration ---
-            const COLS = 23; // 23x23 grid for maze
+            const COLS = 23; 
             const ROWS = 23;
-            const CELL = 30; // 23 * 30 = 690px
+            const CELL = 30; 
             const W = COLS * CELL;
             const H = ROWS * CELL;
-            const TICK_SPEED = 85; // Fast, suspenseful movement
+            const TICK_SPEED = 85; 
 
             const canvas = document.getElementById('gameCanvas');
             const ctx = canvas.getContext('2d', { alpha: false });
@@ -203,7 +202,6 @@
             };
 
             // --- Game State ---
-            let maze = [];
             let snake = [];
             let apples = [];
             let dir = { x: 1, y: 0 };
@@ -212,55 +210,20 @@
             let isGameOver = false;
             let isTransitioning = false;
 
-            // --- Maze Generation ---
-            function generateMaze() {
-                maze = Array.from({ length: ROWS }, () => Array(COLS).fill(1)); // 1 = Wall
-                
-                const stack = [];
-                const startX = 1, startY = 1;
-                maze[startY][startX] = 0; // 0 = Path
-                stack.push({ x: startX, y: startY });
-
-                const dirs = [{x:2,y:0}, {x:-2,y:0}, {x:0,y:2}, {x:0,y:-2}];
-
-                while (stack.length > 0) {
-                    let curr = stack[stack.length - 1];
-                    let neighbors = [];
-
-                    for (let d of dirs) {
-                        let nx = curr.x + d.x;
-                        let ny = curr.y + d.y;
-                        if (nx > 0 && nx < COLS - 1 && ny > 0 && ny < ROWS - 1 && maze[ny][nx] === 1) {
-                            neighbors.push({ x: nx, y: ny, wx: curr.x + d.x / 2, wy: curr.y + d.y / 2 });
-                        }
-                    }
-
-                    if (neighbors.length > 0) {
-                        let next = neighbors[Math.floor(Math.random() * neighbors.length)];
-                        maze[next.wy][next.wx] = 0;
-                        maze[next.y][next.x] = 0;
-                        stack.push({ x: next.x, y: next.y });
-                    } else {
-                        stack.pop();
-                    }
-                }
-            }
-
+            // --- Level Initialization ---
             function resetLevel() {
-                generateMaze();
+                let startX = Math.floor(COLS / 2);
+                let startY = Math.floor(ROWS / 2);
                 
-                let startX = 1, startY = 1;
-                while (maze[startY][startX] !== 0) { startX += 2; startY += 2; }
-
                 snake = [];
-                for (let i = 0; i < 4; i++) snake.push({ x: startX, y: startY });
+                for (let i = 0; i < 4; i++) snake.push({ x: startX - i, y: startY });
                 dir = { x: 1, y: 0 };
                 
-                // Fill board with Apples
+                // Fill board with Apples (approx 70% density)
                 apples = [];
-                for (let y = 1; y < ROWS - 1; y++) {
-                    for (let x = 1; x < COLS - 1; x++) {
-                        if (maze[y][x] === 0 && Math.random() < 0.7) { // 70% density
+                for (let y = 0; y < ROWS; y++) {
+                    for (let x = 0; x < COLS; x++) {
+                        if (Math.random() < 0.7) {
                             if (!snake.some(s => s.x === x && s.y === y)) {
                                 apples.push({ x, y });
                             }
@@ -285,7 +248,7 @@
                     let curr = q[head++];
                     for(let d of DIRS) {
                         let nx = curr.x + d.x, ny = curr.y + d.y;
-                        if(nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && maze[ny][nx] === 0) {
+                        if(nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
                             if(dist[ny][nx] === Infinity && !snake.some(s => s.x === nx && s.y === ny)) {
                                 dist[ny][nx] = curr.d + 1;
                                 q.push({ x: nx, y: ny, d: curr.d + 1 });
@@ -305,12 +268,12 @@
                 while(stack.length > 0) {
                     let curr = stack.pop();
                     space++;
-                    if(space > 150) return space; 
+                    if(space > 200) return space; 
                     
                     for(let d of DIRS) {
                         let nx = curr.x + d.x, ny = curr.y + d.y;
                         let key = `${nx},${ny}`;
-                        if(nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && maze[ny][nx] === 0 && !visited.has(key) && !occupiedSet.has(key)) {
+                        if(nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && !visited.has(key) && !occupiedSet.has(key)) {
                             visited.add(key);
                             stack.push({x: nx, y: ny});
                         }
@@ -324,11 +287,11 @@
                 let occupied = new Set();
                 for(let s of snake) occupied.add(`${s.x},${s.y}`);
 
+                // Find valid adjacent moves
                 let validMoves = [];
                 for(let d of DIRS) {
                     let nx = head.x + d.x, ny = head.y + d.y;
-                    if(nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && maze[ny][nx] === 0) {
-                        // Ignore tail since it will move
+                    if(nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
                         let isBody = false;
                         for(let i=0; i<snake.length-1; i++) {
                             if(snake[i].x === nx && snake[i].y === ny) { isBody = true; break; }
@@ -337,8 +300,9 @@
                     }
                 }
 
-                if (validMoves.length === 0) return null;
+                if (validMoves.length === 0) return null; // Dead
 
+                // Distance map to find nearest apple
                 let distMap = getDistancesFromHead();
                 let bestMoves = [];
                 let minDist = Infinity;
@@ -362,10 +326,11 @@
                         maxSpace = space;
                         safestMove = m;
                     }
-                    // If large space, take it to be safe
+                    // If it has plenty of space, take it
                     if(space > snake.length + 5) { safestMove = m; break; }
                 }
 
+                // Fallback: If no apple is reachable, just follow the tail (stay alive)
                 if(!safestMove) {
                     for(let m of validMoves) {
                         let tempOcc = new Set(occupied);
@@ -382,7 +347,15 @@
             function updateGame() {
                 if (isGameOver || isTransitioning) return;
 
+                // Trigger Level Up if snake gets too massive (e.g., > 120 segments)
+                if (snake.length > 120) {
+                    triggerLevelUp();
+                    return;
+                }
+
                 const nextDir = getNextMove();
+                
+                // If no move is possible (trapped), Level Up!
                 if (!nextDir) { triggerLevelUp(); return; }
 
                 dir = nextDir;
@@ -397,17 +370,20 @@
                     playSound('eat');
                     apples.splice(appleIdx, 1);
                     
-                    // Replenish apple
-                    let emptySpots = [];
-                    for (let y = 1; y < ROWS - 1; y++) {
-                        for (let x = 1; x < COLS - 1; x++) {
-                            if (maze[y][x] === 0 && !snake.some(s => s.x === x && s.y === y) && !apples.some(a => a.x === x && a.y === y)) {
-                                emptySpots.push({x, y});
+                    // If apples run out (less than 30), refill the board slightly
+                    if (apples.length < 30) {
+                        let emptySpots = [];
+                        for (let y = 0; y < ROWS; y++) {
+                            for (let x = 0; x < COLS; x++) {
+                                if (!snake.some(s => s.x === x && s.y === y) && !apples.some(a => a.x === x && a.y === y)) {
+                                    emptySpots.push({x, y});
+                                }
                             }
                         }
-                    }
-                    if (emptySpots.length > 0 && apples.length < 70) {
-                        apples.push(emptySpots[Math.floor(Math.random() * emptySpots.length)]);
+                        emptySpots.sort(() => Math.random() - 0.5);
+                        for(let i=0; i<100 && i<emptySpots.length; i++) {
+                            apples.push(emptySpots[i]);
+                        }
                     }
                 } else {
                     snake.pop();
@@ -430,11 +406,10 @@
 
             // --- Rendering ---
             function draw() {
-                // 1. Background
+                // 1. Background Grid
                 ctx.fillStyle = '#0a0a1a';
                 ctx.fillRect(0, 0, W, H);
 
-                // 2. Checkerboard
                 for (let y = 0; y < ROWS; y++) {
                     for (let x = 0; x < COLS; x++) {
                         if ((x + y) % 2 === 0) {
@@ -444,22 +419,7 @@
                     }
                 }
 
-                // 3. Maze Walls (Green Rounded)
-                ctx.fillStyle = '#22c55e'; 
-                ctx.shadowBlur = 5;
-                ctx.shadowColor = '#22c55e';
-                for (let y = 0; y < ROWS; y++) {
-                    for (let x = 0; x < COLS; x++) {
-                        if (maze[y][x] === 1) {
-                            ctx.beginPath();
-                            ctx.roundRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2, 5);
-                            ctx.fill();
-                        }
-                    }
-                }
-                ctx.shadowBlur = 0;
-
-                // 4. Apples
+                // 2. Apples
                 for (let a of apples) {
                     let cx = a.x * CELL + CELL / 2;
                     let cy = a.y * CELL + CELL / 2;
@@ -473,7 +433,7 @@
                     ctx.fill();
                 }
 
-                // 5. Snake (Continuous Cyan Ribbon)
+                // 3. Snake (Continuous Cyan Ribbon)
                 if (snake.length > 0) {
                     ctx.strokeStyle = '#00bfff';
                     ctx.lineWidth = CELL * 0.8;
