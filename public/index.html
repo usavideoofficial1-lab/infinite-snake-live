@@ -100,7 +100,7 @@
             <div class="title-row">
                 <div class="title-group">
                     <h1>GRANDMA<br><span>GAME</span></h1>
-                    <div class="level-badge" id="ui-level">ENDLESS MODE</div>
+                    <div class="level-badge">ENDLESS MODE</div>
                 </div>
                 <div class="cam-box">CAM<br>FEED</div>
             </div>
@@ -124,13 +124,12 @@
         (function() {
             'use strict';
 
-            // --- Configuration ---
             const COLS = 23; 
             const ROWS = 23;
             const CELL = 30; 
             const W = COLS * CELL;
             const H = ROWS * CELL;
-            const TICK_SPEED = 80; // Fast and suspenseful
+            const TICK_SPEED = 80; 
 
             const canvas = document.getElementById('gameCanvas');
             const ctx = canvas.getContext('2d', { alpha: false });
@@ -170,7 +169,6 @@
             let apples = [];
             let dir = { x: 1, y: 0 };
             let lastTick = 0;
-            let isGameOver = false;
 
             // --- Init Game ---
             function initGame() {
@@ -178,12 +176,11 @@
                 let startY = Math.floor(ROWS / 2);
                 
                 snake = [];
-                // Start with a slightly longer snake
                 for (let i = 0; i < 6; i++) snake.push({ x: startX - i, y: startY });
                 dir = { x: 1, y: 0 };
                 
                 apples = [];
-                // FILL THE BOARD WITH APPLES (approx 70%)
+                // Fill the board with apples at start
                 for (let y = 0; y < ROWS; y++) {
                     for (let x = 0; x < COLS; x++) {
                         if (Math.random() < 0.7) {
@@ -193,10 +190,9 @@
                         }
                     }
                 }
-                isGameOver = false;
             }
 
-            // --- AI Pathfinding & Survival Logic ---
+            // --- AI Logic ---
             const DIRS = [{x:1,y:0}, {x:-1,y:0}, {x:0,y:1}, {x:0,y:-1}];
             
             function getDistancesFromHead() {
@@ -248,7 +244,6 @@
                 let occupied = new Set();
                 for(let s of snake) occupied.add(`${s.x},${s.y}`);
 
-                // 1. Get all safe adjacent moves
                 let validMoves = [];
                 for(let d of DIRS) {
                     let nx = head.x + d.x, ny = head.y + d.y;
@@ -263,7 +258,6 @@
 
                 if (validMoves.length === 0) return null;
 
-                // 2. Find path to nearest apple
                 let distMap = getDistancesFromHead();
                 let bestMoves = [];
                 let minDist = Infinity;
@@ -274,11 +268,9 @@
                     else if(d === minDist) { bestMoves.push(m); }
                 }
 
-                // 3. Hard Mode Survival: If snake is very long, prioritize space over apples
                 let safestMove = null;
                 let maxSpace = -1;
                 
-                // Shuffle to keep it unpredictable
                 bestMoves.sort(() => Math.random() - 0.5);
 
                 for(let m of bestMoves) {
@@ -286,19 +278,15 @@
                     tempOcc.add(`${m.nx},${m.ny}`);
                     let space = getFreeSpace(m.nx, m.ny, tempOcc);
                     
-                    // If it has enough space, go for it
                     if(space > maxSpace) {
                         maxSpace = space;
                         safestMove = m;
                     }
                     
-                    // If snake is short, just go to the apple if it has decent space
                     if(snake.length < 50 && space > 10) { safestMove = m; break; }
-                    // If snake is long, it MUST have a lot of space to survive
                     if(snake.length >= 50 && space > snake.length / 2) { safestMove = m; break; }
                 }
 
-                // Fallback: Just pick the move with absolute max space (Tail chase)
                 if(!safestMove) {
                     for(let m of validMoves) {
                         let tempOcc = new Set(occupied);
@@ -313,11 +301,9 @@
 
             // --- Game Loop ---
             function updateGame() {
-                if (isGameOver) return;
-
                 const nextDir = getNextMove();
                 
-                // If absolutely no safe moves exist, auto-reset the snake to middle (No Game Over!)
+                // If absolutely no safe moves exist, auto-reset the snake silently
                 if (!nextDir) {
                     let startX = Math.floor(COLS / 2);
                     let startY = Math.floor(ROWS / 2);
@@ -339,10 +325,9 @@
                     playSound('eat');
                     apples.splice(appleIdx, 1);
                     
-                    // CONTINUOUS SPAWNING LOGIC:
-                    // If apples drop below 5, spawn 1, 2, or 3 new ones randomly.
+                    // CONTINUOUS SPAWNING LOGIC (1, 2, or 3 apples at a time)
                     if (apples.length < 5) {
-                        let spawnCount = Math.floor(Math.random() * 3) + 1; // 1, 2, or 3
+                        let spawnCount = Math.floor(Math.random() * 3) + 1; 
                         let emptySpots = [];
                         for (let y = 0; y < ROWS; y++) {
                             for (let x = 0; x < COLS; x++) {
@@ -364,7 +349,6 @@
             // --- Drawing ---
             function drawApple(cx, cy) {
                 let r = CELL * 0.35;
-                // Main Apple Body
                 ctx.fillStyle = '#32cd32'; 
                 ctx.shadowBlur = 5;
                 ctx.shadowColor = '#32cd32';
@@ -372,18 +356,15 @@
                 ctx.arc(cx, cy, r, 0, Math.PI * 2); 
                 ctx.fill();
                 
-                // Highlight
                 ctx.shadowBlur = 0;
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
                 ctx.beginPath(); 
                 ctx.arc(cx - r*0.3, cy - r*0.3, r*0.3, 0, Math.PI * 2); 
                 ctx.fill();
                 
-                // Stem
                 ctx.fillStyle = '#8b4513'; 
                 ctx.fillRect(cx - 1, cy - r - 3, 2, 4);
                 
-                // Leaf (Original Apple look)
                 ctx.fillStyle = '#22c55e';
                 ctx.beginPath();
                 ctx.ellipse(cx + 3, cy - r - 2, 4, 2, Math.PI / 4, 0, Math.PI * 2);
@@ -391,7 +372,6 @@
             }
 
             function draw() {
-                // 1. Background Grid
                 ctx.fillStyle = '#0a0a1a';
                 ctx.fillRect(0, 0, W, H);
 
@@ -404,12 +384,10 @@
                     }
                 }
 
-                // 2. Apples
                 for (let a of apples) {
                     drawApple(a.x * CELL + CELL / 2, a.y * CELL + CELL / 2);
                 }
 
-                // 3. Snake (Continuous Cyan Ribbon)
                 if (snake.length > 0) {
                     ctx.strokeStyle = '#00bfff';
                     ctx.lineWidth = CELL * 0.8;
@@ -428,7 +406,6 @@
                     ctx.stroke();
                     ctx.shadowBlur = 0; 
 
-                    // Head Details (Eyes)
                     let head = snake[0];
                     let hx = head.x * CELL + CELL / 2;
                     let hy = head.y * CELL + CELL / 2;
@@ -448,7 +425,6 @@
                 }
             }
 
-            // --- Main Loop ---
             function loop(time) {
                 requestAnimationFrame(loop);
                 if (!lastTick) lastTick = time;
@@ -459,9 +435,8 @@
                 draw();
             }
 
-            // Init
-            try { initGame(); requestAnimationFrame(loop); } 
-            catch(e) { console.error(e); }
+            initGame(); 
+            requestAnimationFrame(loop);
 
             document.addEventListener('visibilitychange', () => {
                 if (!document.hidden) lastTick = performance.now();
